@@ -1,0 +1,80 @@
+---
+title: "chapter 2, Managing & Understanding Data"
+author: "jason grahn"
+format: gfm
+editor: visual
+output: "asis"
+---
+
+## Chapter 2
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+subject_name <- c("John Doe", "Jane Doe", "Steve Graves")
+temperature <- c(98.1, 98.6, 101.4)
+flu_status <- c(FALSE, FALSE, TRUE)
+
+fever <- temperature > 100
+subject_name[fever]
+
+gender <- factor(c("MALE", "FEMALE", "MALE"))
+
+blood <- factor(c("O", "AB", "A"),
+                levels = c("A", "B", "AB", "O"))
+blood
+
+symptoms <- factor(c("SEVERE", "MILD", "MODERATE"),
+                   levels = c("MILD", "MODERATE", "SEVERE"),
+                   ordered = TRUE)
+
+# make it a list
+subject1 <- list(fullname = subject_name[1],
+                 temperature = temperature[1],
+                 flu_status = flu_status[1],
+                 gender = gender[1],
+                 blood = blood[1],
+                 symptoms = symptoms[1])
+
+#make it a DF
+pt_data <- data.frame(subject_name, temperature, flu_status, gender, blood, symptoms)
+
+pt_data
+```
+
+Of course, columns are better accessed by name rather than position, and negative signs can be used to exclude rows or columns of data. Therefore, the output of the command:
+
+```{r}
+pt_data[c(1, 3), c("temperature", "gender")]
+```
+
+... Is the same as...
+
+```{r}
+pt_data |> 
+    filter(str_detect(subject_name, 'Doe') == TRUE) %>% 
+    select(temperature, gender) 
+
+```
+
+adding a new column to a data frame
+
+```{r}
+pt_data$temp_c <- (pt_data$temperature - 32) * (5 / 9)
+
+# is the same as 
+
+pt_data %>% 
+    mutate(temp_c = (temperature - 32) * (5/9))
+
+```
+
+# Matrices and arrays
+
+```{r}
+m <- matrix(c(1, 2, 3, 4), nrow = 2)
+m
+
+```
