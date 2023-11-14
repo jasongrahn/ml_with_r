@@ -78,3 +78,100 @@ m <- matrix(c(1, 2, 3, 4), nrow = 2)
 m
 
 ```
+
+```{r}
+save(pt_data, file = "mydata.RData")
+
+load("mydata.RData")
+
+saveRDS(my_model, file = "my_model.rds")
+ls()
+
+rm(m, subject1)
+
+ls()
+```
+
+# Importing and saving datasets from CSV files
+
+importing is pretty easy in both standard and tidy formats
+
+```{r}
+pt_data <- read.csv(here::here("02_managing_data", "data", "pt_data.csv"),
+                    stringsAsFactors = TRUE)
+
+pt_data_tidy <- read_csv(here::here("02_managing_data", "data", "pt_data.csv")) %>% 
+    janitor::clean_names()
+
+pt_data_tidy
+```
+
+writing..
+
+```{r}
+write.csv(pt_data, file = here::here("02_managing_data", "data", "pt_data_write.csv"), 
+          row.names = FALSE)
+
+write_csv(pt_data_tidy, file = here::here("02_managing_data", "data", "pt_data_tidy.csv"))
+```
+
+# Exploring and understanding data
+
+using the **"usedcars.csv"** dataset..
+
+```{r}
+used_cars_tidy <- read_csv(here::here("02_managing_data", "data", "usedcars.csv")) %>% 
+    janitor::clean_names()
+```
+
+## exploring the structure
+
+```{r}
+glimpse(used_cars_tidy)
+```
+
+The book uses base R "summary" but I like the `psych::describe` function a lot more for doing the same thing.
+
+```{r}
+summary(used_cars_tidy)
+psych::describe(used_cars_tidy) 
+```
+
+more specific now..
+
+```{r}
+summary(used_cars_tidy[c("price", "mileage")])
+
+used_cars_tidy %>% 
+    select(price, mileage) %>% 
+    psych::describe()
+```
+
+```{r}
+range(used_cars_tidy$price)
+
+# or again we can use describe, but describe doesn't like working with just 1 variable! 
+
+used_cars_tidy %>% 
+    select(price, year) %>% 
+    psych::describe()
+
+```
+
+Combining range() with the difference function diff() allows you to compute the range statistic with a single line of code:
+
+```{r}
+diff(range(used_cars_tidy$price))
+```
+
+But we could have achieved the same results from looking at the `range` variable within psych::describe...
+
+We dont get the Interquartile range of `price` from describe though, not without calculating it.
+
+```{r}
+IQR(used_cars_tidy$price)
+```
+
+```{r}
+quantile(used_cars_tidy$price)
+```
