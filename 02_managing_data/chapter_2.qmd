@@ -84,10 +84,10 @@ save(pt_data, file = "mydata.RData")
 
 load("mydata.RData")
 
-saveRDS(my_model, file = "my_model.rds")
+#saveRDS(my_model, file = "my_model.rds")
 ls()
 
-rm(m, subject1)
+#rm(m, subject1)
 
 ls()
 ```
