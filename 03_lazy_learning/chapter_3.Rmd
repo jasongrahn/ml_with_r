@@ -1,0 +1,11 @@
+---
+title: "chapter_3"
+author: "jason grahn"
+date: "2023-11-15"
+output: github_document
+---
+
+```{r setup, include=FALSE, echo=FALSE}
+library(tidyverse)
+```
+

@@ -1,5 +1,4 @@
-chapter 2, Managing & Understanding Data
-================
+# chapter 2, Managing & Understanding Data
 jason grahn
 
 ## Chapter 2
@@ -118,8 +117,9 @@ load("mydata.RData")
 ls()
 ```
 
-\[1\] “blood” “fever” “flu_status” “gender” “m”  
-\[6\] “pt_data” “subject_name” “subject1” “symptoms” “temperature”
+\[1\] “blood” “fever” “flu_status” “gender”  
+\[5\] “has_annotations” “m” “pt_data” “subject_name”  
+\[9\] “subject1” “symptoms” “temperature”
 
 ``` r
 #rm(m, subject1)
@@ -127,8 +127,9 @@ ls()
 ls()
 ```
 
-\[1\] “blood” “fever” “flu_status” “gender” “m”  
-\[6\] “pt_data” “subject_name” “subject1” “symptoms” “temperature”
+\[1\] “blood” “fever” “flu_status” “gender”  
+\[5\] “has_annotations” “m” “pt_data” “subject_name”  
+\[9\] “subject1” “symptoms” “temperature”
 
 # Importing and saving datasets from CSV files
 
@@ -316,3 +317,245 @@ quantile(used_cars_tidy$price)
      0%     25%     50%     75%    100% 
 
 3800.0 10995.0 13591.5 14904.5 21992.0
+
+or we can supply arguments to get specific percentiles…
+
+``` r
+quantile(used_cars_tidy$price, probs = c(0.01, 0.99))
+```
+
+      1%      99% 
+
+5428.69 20505.00
+
+``` r
+# and in tidy format..
+
+used_cars_tidy %>% 
+    select(price) %>% 
+    summarize(p01 = quantile(price,.01),
+              p99 = quantile(price,.99))
+```
+
+# A tibble: 1 × 2
+
+    p01   p99
+
+<dbl> <dbl> 1 5429. 20505
+
+and they emphasize sequencing, which, to be fair, i should do more
+often. Directly Replicating the base-R quantile process in Tidy doesn’t
+look great. There’s probably a better way to do this?
+
+``` r
+quantile(used_cars_tidy$price, seq(from = 0, 
+                                   to = 1, 
+                                   by = .20))
+```
+
+     0%     20%     40%     60%     80%    100% 
+
+3800.0 10759.4 12993.8 13992.0 14999.0 21992.0
+
+``` r
+used_cars_tidy %>% 
+    select(price) %>% 
+    summarize(percentiles = quantile(price,
+                                     seq(from = 0, 
+                                         to = 1, 
+                                         by = .20)))
+```
+
+    Warning: Returning more (or less) than 1 row per `summarise()` group was deprecated in
+    dplyr 1.1.0.
+    ℹ Please use `reframe()` instead.
+    ℹ When switching from `summarise()` to `reframe()`, remember that `reframe()`
+      always returns an ungrouped data frame and adjust accordingly.
+
+# A tibble: 6 × 1
+
+percentiles <dbl> 1 3800 2 10759. 3 12994. 4 13992 5 14999 6 21992
+
+Oh.. this is MUCH better:
+https://stackoverflow.com/questions/30488389/using-dplyr-window-functions-to-calculate-percentiles.
+
+``` r
+used_cars_tidy %>% 
+    summarize(enframe(quantile(price, seq(from = 0, to = 1, by = .20)), "quantile", "price"))
+```
+
+    Warning: Returning more (or less) than 1 row per `summarise()` group was deprecated in
+    dplyr 1.1.0.
+    ℹ Please use `reframe()` instead.
+    ℹ When switching from `summarise()` to `reframe()`, remember that `reframe()`
+      always returns an ungrouped data frame and adjust accordingly.
+
+# A tibble: 6 × 2
+
+quantile price <chr> <dbl> 1 0% 3800 2 20% 10759. 3 40% 12994. 4 60%
+13992 5 80% 14999 6 100% 21992
+
+# Visualizing numeric features – boxplots
+
+I dont particularly like the base R boxplots, so this will be
+interesting.
+
+``` r
+boxplot(used_cars_tidy$price, 
+        main = "Boxplot of Used Car Prices",
+        ylab = "Price ($)")
+```
+
+![](chapter_2_files/figure-commonmark/unnamed-chunk-21-1.png)
+
+``` r
+boxplot(used_cars_tidy$mileage, 
+        main = "Boxplot of Used Car Mileage",
+        ylab = "Odometer (mi.)")
+```
+
+![](chapter_2_files/figure-commonmark/unnamed-chunk-21-2.png)
+
+``` r
+used_cars_tidy %>% 
+    select(price, mileage) %>% 
+    pivot_longer(names_to = "key",
+                 values_to = "values",
+                 cols = 1:2) %>% 
+    mutate(box_labels = case_when(key == 'mileage' ~ 'Plot of Used Car Mileage (mi.)',
+                                  key == 'price' ~ 'Plot of Used Car Price ($)')) %>% 
+    ggplot(aes(y = values)) + 
+    geom_boxplot() + 
+    facet_wrap(~box_labels,
+               scales = 'free_y') + 
+    theme_light() + 
+    theme(axis.title.x=element_blank(),
+          axis.text.x=element_blank(),
+          axis.ticks.x=element_blank()) + 
+    labs(y = "")
+```
+
+![](chapter_2_files/figure-commonmark/unnamed-chunk-21-3.png)
+
+This chapter goes on to talk about histograms, skewness, variance,
+standard deviations, and other base statistics.
+
+Then we talk about building scatterplots to evaluate relationships
+between variables. Then we get into using the `gmodels` package to
+evaluate the strength of those relationships.
+
+# Examining relationships – two-way cross-tabulations
+
+``` r
+library(gmodels)
+```
+
+``` r
+used_cars_tidy <- 
+    used_cars_tidy %>% 
+    mutate(conservative = color %in% c("Black", "Gray", "Silver", "White"))
+```
+
+``` r
+table(used_cars_tidy$conservative)
+```
+
+FALSE TRUE 51 99
+
+``` r
+gmodels::CrossTable(x = used_cars_tidy$model, y = used_cars_tidy$conservative)
+```
+
+Cell Contents \|————————-\| \| N \| \| Chi-square contribution \| \| N /
+Row Total \| \| N / Col Total \| \| N / Table Total \| \|————————-\|
+
+Total Observations in Table: 150
+
+                     | used_cars_tidy$conservative 
+
+| used_cars_tidy\$model | FALSE | TRUE  | Row Total |
+|-----------------------|-------|-------|-----------|
+| SE                    | 27    | 51    | 78        |
+| 0.009                 | 0.004 |       |           |
+| 0.346                 | 0.654 | 0.520 |           |
+| 0.529                 | 0.515 |       |           |
+| 0.180                 | 0.340 |       |           |
+| ———————               | ———–  | ———–  | ———–      |
+| SEL                   | 7     | 16    | 23        |
+| 0.086                 | 0.044 |       |           |
+| 0.304                 | 0.696 | 0.153 |           |
+| 0.137                 | 0.162 |       |           |
+| 0.047                 | 0.107 |       |           |
+| ———————               | ———–  | ———–  | ———–      |
+| SES                   | 17    | 32    | 49        |
+| 0.007                 | 0.004 |       |           |
+| 0.347                 | 0.653 | 0.327 |           |
+| 0.333                 | 0.323 |       |           |
+| 0.113                 | 0.213 |       |           |
+| ———————               | ———–  | ———–  | ———–      |
+| Column Total          | 51    | 99    | 150       |
+| 0.340                 | 0.660 |       |           |
+| ———————               | ———–  | ———–  | ———–      |
+
+The book says to add up all the chi-square contributions to do a fit
+test. Sure, though I’m sure there’s a *better* way out there somewhere.
+Anyway.
+
+``` r
+chi_sq <- 0.009 + .004 + .086 +.044 + .007 + 0.004
+chi_sq
+```
+
+\[1\] 0.154
+
+``` r
+pch <- pchisq(chi_sq, df = 2, lower.tail = FALSE)
+pch
+```
+
+\[1\] 0.9258899
+
+``` r
+# which matches the book. 
+```
+
+``` r
+CrossTable(x = used_cars_tidy$model, y = used_cars_tidy$conservative, chisq = TRUE)
+```
+
+Cell Contents \|————————-\| \| N \| \| Chi-square contribution \| \| N /
+Row Total \| \| N / Col Total \| \| N / Table Total \| \|————————-\|
+
+Total Observations in Table: 150
+
+                     | used_cars_tidy$conservative 
+
+| used_cars_tidy\$model | FALSE | TRUE  | Row Total |
+|-----------------------|-------|-------|-----------|
+| SE                    | 27    | 51    | 78        |
+| 0.009                 | 0.004 |       |           |
+| 0.346                 | 0.654 | 0.520 |           |
+| 0.529                 | 0.515 |       |           |
+| 0.180                 | 0.340 |       |           |
+| ———————               | ———–  | ———–  | ———–      |
+| SEL                   | 7     | 16    | 23        |
+| 0.086                 | 0.044 |       |           |
+| 0.304                 | 0.696 | 0.153 |           |
+| 0.137                 | 0.162 |       |           |
+| 0.047                 | 0.107 |       |           |
+| ———————               | ———–  | ———–  | ———–      |
+| SES                   | 17    | 32    | 49        |
+| 0.007                 | 0.004 |       |           |
+| 0.347                 | 0.653 | 0.327 |           |
+| 0.333                 | 0.323 |       |           |
+| 0.113                 | 0.213 |       |           |
+| ———————               | ———–  | ———–  | ———–      |
+| Column Total          | 51    | 99    | 150       |
+| 0.340                 | 0.660 |       |           |
+| ———————               | ———–  | ———–  | ———–      |
+
+Statistics for All Table Factors
+
+## Pearson’s Chi-squared test
+
+Chi^2 = 0.1539564 d.f. = 2 p = 0.92591

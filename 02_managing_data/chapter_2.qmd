@@ -175,3 +175,109 @@ IQR(used_cars_tidy$price)
 ```{r}
 quantile(used_cars_tidy$price)
 ```
+
+or we can supply arguments to get specific percentiles...
+
+```{r}
+quantile(used_cars_tidy$price, probs = c(0.01, 0.99))
+
+# and in tidy format..
+
+used_cars_tidy %>% 
+    select(price) %>% 
+    summarize(p01 = quantile(price,.01),
+              p99 = quantile(price,.99))
+```
+
+and they emphasize sequencing, which, to be fair, i should do more often. Directly Replicating the base-R quantile process in Tidy doesn't look great. There's probably a better way to do this?
+
+```{r}
+quantile(used_cars_tidy$price, seq(from = 0, 
+                                   to = 1, 
+                                   by = .20))
+
+used_cars_tidy %>% 
+    select(price) %>% 
+    summarize(percentiles = quantile(price,
+                                     seq(from = 0, 
+                                         to = 1, 
+                                         by = .20)))
+
+```
+
+Oh.. this is MUCH better: https://stackoverflow.com/questions/30488389/using-dplyr-window-functions-to-calculate-percentiles.
+
+```{r}
+used_cars_tidy %>% 
+    summarize(enframe(quantile(price, seq(from = 0, to = 1, by = .20)), "quantile", "price"))
+```
+
+# Visualizing numeric features -- boxplots
+
+I dont particularly like the base R boxplots, so this will be interesting.
+
+```{r}
+boxplot(used_cars_tidy$price, 
+        main = "Boxplot of Used Car Prices",
+        ylab = "Price ($)")
+boxplot(used_cars_tidy$mileage, 
+        main = "Boxplot of Used Car Mileage",
+        ylab = "Odometer (mi.)")
+
+used_cars_tidy %>% 
+    select(price, mileage) %>% 
+    pivot_longer(names_to = "key",
+                 values_to = "values",
+                 cols = 1:2) %>% 
+    mutate(box_labels = case_when(key == 'mileage' ~ 'Plot of Used Car Mileage (mi.)',
+                                  key == 'price' ~ 'Plot of Used Car Price ($)')) %>% 
+    ggplot(aes(y = values)) + 
+    geom_boxplot() + 
+    facet_wrap(~box_labels,
+               scales = 'free_y') + 
+    theme_light() + 
+    theme(axis.title.x=element_blank(),
+          axis.text.x=element_blank(),
+          axis.ticks.x=element_blank()) + 
+    labs(y = "")
+    
+```
+
+This chapter goes on to talk about histograms, skewness, variance, standard deviations, and other base statistics.
+
+Then we talk about building scatterplots to evaluate relationships between variables. Then we get into using the `gmodels` package to evaluate the strength of those relationships.
+
+# Examining relationships -- two-way cross-tabulations
+
+```{r}
+library(gmodels)
+```
+
+```{r}
+used_cars_tidy <- 
+    used_cars_tidy %>% 
+    mutate(conservative = color %in% c("Black", "Gray", "Silver", "White"))
+```
+
+```{r}
+table(used_cars_tidy$conservative)
+```
+
+```{r}
+gmodels::CrossTable(x = used_cars_tidy$model, y = used_cars_tidy$conservative)
+```
+
+The book says to add up all the chi-square contributions to do a fit test. Sure, though I'm sure there's a *better* way out there somewhere. Anyway.
+
+```{r}
+chi_sq <- 0.009 + .004 + .086 +.044 + .007 + 0.004
+chi_sq
+
+pch <- pchisq(chi_sq, df = 2, lower.tail = FALSE)
+pch
+# which matches the book. 
+```
+
+```{r}
+CrossTable(x = used_cars_tidy$model, y = used_cars_tidy$conservative, chisq = TRUE)
+```
