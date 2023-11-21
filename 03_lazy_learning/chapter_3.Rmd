@@ -54,3 +54,110 @@ systems that merely store training verbatim. You tell it what to do, it goes and
 
 # Example – diagnosing breast cancer with the k-NN algorithm
 
+What we're doing to do is the whole chapter normally, then if we feel like doing it in tidy style, a redo section..
+
+## base R
+
+### step 1 collection 
+
+```{r}
+wbcd_tidy <- read_csv(here::here("03_lazy_learning", "data", "wisc_bc_data.csv")) %>% 
+    janitor::clean_names() %>% 
+    mutate(diagnosis = factor(diagnosis, levels = c("B", "M"),
+                              labels = c("Benign", "Malignant"))
+    )
+
+wbcd <- wbcd_tidy[-1]
+```
+
+### step 2 exploration and data prep 
+
+```{r}
+table(wbcd$diagnosis)
+round(prop.table(table(wbcd$diagnosis)) * 100, digits = 1)
+summary(wbcd[c("radius_mean", "area_mean", "smoothness_mean")])
+
+```
+
+the data ranges for these values are massively different. it's going to be hard to do any kNN on them. need to normalize them somehow. 
+
+Oh, the book gives us a function for min-max normalization. 
+
+```{r}
+normalize <- function(x) {
+    return ((x - min(x)) / (max(x) - min(x)))
+}
+
+normalize(c(1,2,3,4,5))
+```
+
+```{r}
+normalize(c(10,20,30,40,50))
+```
+
+we're going to use `lapply` to apply the `normalize` function we just made to each numeric feature in the dataset. `lapply` and it's tidyverse counterpart `map` are a bit mysterious to me, so i'll use the code from the book. 
+
+```{r}
+wbcd_n <- as.data.frame(lapply(wbcd[2:31], normalize))
+summary(wbcd_n$area_mean)
+```
+
+Now we're going to divide the data into training and testing data. I know there's a tidy version of doing this too. 
+
+```{r}
+wbcd_train <- wbcd_n[1:469, ]
+wbcd_test <- wbcd_n[470:569, ]
+```
+
+```{r}
+wbcd_train_labels <- wbcd[1:469, 1]
+wbcd_test_labels <- wbcd[470:569, 1]
+```
+
+### step 3 training 
+```{r}
+library(class)
+wbcd_test_pred <- knn(train = wbcd_train,  #469 rows
+                      test = wbcd_test,
+                      cl = wbcd_train_labels$diagnosis, #469 rows
+                      k = 21)
+```
+
+getting error: 
+> Error in knn(train = wbcd_train, test = wbcd_test, cl = wbcd_train_labels[, : 'train' and 'class' have different lengths
+
+error fixed by adding `$diagnosis` to the `cl` parameter. 
+
+### step 4 model performance
+
+
+## Tidy styling
+
+Ohh, right, `mustate_if` let's me use the normalize function against the data. But ideally these would be _new_ columns just in case we want to look at the original data. 
+
+the tidy way to do this would be to retain the ID column, then normalize as a mutate, then `slice_head` to get the same rows. 
+```{r}
+cancer_tidy <- 
+    wbcd_tidy %>% 
+    mutate_if(is.double, normalize) 
+
+cancer_tidy_train <- 
+    cancer_tidy %>% 
+    slice_head(n = 469)
+
+cancer_tidy_test <- 
+    cancer_tidy %>% 
+    anti_join(cancer_tidy_train, by = 'id')
+```
+
+I like the tidy way better because it maintains the other variables and we dont need to rejoin to get the diagnosis info. But I digress, let's make data frames of the diagnosis column data...
+
+```{r}
+cancer_predict <- knn(train = cancer_tidy_train %>% select(-c(1:2)),  #469 rows
+    test = cancer_tidy_test %>% select(-c(1:2)),
+    cl = cancer_tidy_train$diagnosis, #469 rows
+    k = 21)
+
+```
+
+
