@@ -67,7 +67,10 @@ wbcd_tidy <- read_csv(here::here("03_lazy_learning", "data", "wisc_bc_data.csv")
                               labels = c("Benign", "Malignant"))
     )
 
-wbcd <- wbcd_tidy[-1]
+wbcd <- read.csv("data/wisc_bc_data.csv")[-1]
+
+wbcd$diagnosis <- factor(wbcd$diagnosis, levels = c("B", "M"),
+                         labels = c("Benign", "Malignant"))
 ```
 
 ### step 2 exploration and data prep 
@@ -119,7 +122,7 @@ wbcd_test_labels <- wbcd[470:569, 1]
 library(class)
 wbcd_test_pred <- knn(train = wbcd_train,  #469 rows
                       test = wbcd_test,
-                      cl = wbcd_train_labels$diagnosis, #469 rows
+                      cl = wbcd_train_labels, #469 rows
                       k = 21)
 ```
 
@@ -130,10 +133,80 @@ error fixed by adding `$diagnosis` to the `cl` parameter.
 
 ### step 4 model performance
 
+```{r}
+library(gmodels) #for evaluating model performance
+```
+
+```{r}
+CrossTable(x = wbcd_test_labels, y = wbcd_test_pred,
+             prop.chisq = FALSE)
+```
+
+(I really dont like this format for results. Partly because I'm not used to seeing them this way.)
+
+Top left is true negative. 61% of values sit here. 
+Bottom right = true positive. 37%.
+lower left = false negative. 2% predicted benign but actually malignant. 
+top right, false positive. 0%
+
+67+37+2 = 100%
+
+### step 6 improvments
+
+let's z-score standardize and see if that helps. 
+
+```{r}
+#standarization
+wbcd_z <- as.data.frame(scale(wbcd[-1]))
+
+#example summary stats.
+summary(wbcd_z$area_mean)
+```
+
+The mean of z-score standardization should always be zero, and here it is. on the low side, nothing smaller than -3; on the high side we definitely have outliers.
+
+regardless, we follow the same process as before, just now with the z-score normalized data.
+
+```{r}
+wbcd_train <- wbcd_z[1:469, ]
+wbcd_test <- wbcd_z[470:569, ]
+wbcd_train_labels <- wbcd[1:469, 1]
+wbcd_test_labels <- wbcd[470:569, 1]
+wbcd_test_pred <- 
+    knn(train = wbcd_train, 
+        test = wbcd_test,
+        cl = wbcd_train_labels, k = 21)
+
+CrossTable(x = wbcd_test_labels, y = wbcd_test_pred,
+             prop.chisq = FALSE)
+```
+
+
+Now we have 61 + 34 = 95% classified correctly; so the z-scoring normalization made things worse. having 5% misclassified as _false negatives_ is a big problem when it comes to tumors! 
+
+OK, but what if we change how many neighbors we're using for sampling? (PS: part of the reason i dont like this method _so far_ is because we dont have an visualizations showing the classification objects, just an output table!)
+
+they give us a for-loop code to run through different k-values. 
+
+```{r}
+k_values <- c(1, 5, 11, 15, 21, 27)
+
+for (k_val in k_values) {
+    wbcd_test_pred <- knn(train = wbcd_train,
+                          test = wbcd_test,
+                          cl = wbcd_train_labels,
+                          k = k_val)
+    CrossTable(x = wbcd_test_labels,
+               y = wbcd_test_pred,
+               prop.chisq = FALSE)
+  }
+
+```
+
 
 ## Tidy styling
 
-Ohh, right, `mustate_if` let's me use the normalize function against the data. But ideally these would be _new_ columns just in case we want to look at the original data. 
+Ohh, right, `mutate_if` let's me use the normalize function against the data. But ideally these would be _new_ columns just in case we want to look at the original data. 
 
 the tidy way to do this would be to retain the ID column, then normalize as a mutate, then `slice_head` to get the same rows. 
 ```{r}
@@ -157,7 +230,6 @@ cancer_predict <- knn(train = cancer_tidy_train %>% select(-c(1:2)),  #469 rows
     test = cancer_tidy_test %>% select(-c(1:2)),
     cl = cancer_tidy_train$diagnosis, #469 rows
     k = 21)
-
 ```
 
-
+At the end of the chapter, we have implication that we're going to be doing things a bit differently later on, so I'll save my tidy translations until I see otherwise. Maybe I'll just get another book of the same topic that does it all Tidy. 
