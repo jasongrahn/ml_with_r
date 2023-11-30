@@ -1,0 +1,376 @@
+---
+title: "chapter_4_probabilistic_classifiers_with_bayes"
+author: "jason grahn"
+date: "2023-11-21"
+output: github1_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(readr)
+
+```
+
+"Bayes" = principles for describing the probability of events and how those probabilities are revised with additional information.
+
+Refresher: 
+
+* probability measured as a number between 0 and 1 (0 to 100%)
+* low = not likely to occur, high = likely to occur.
+
+Bayes Classifiers use training data to find probability of outcomes based on featurd-based evidence.
+Classifier then applied to unlabeled data to predict most likley class from the new example. 
+
+Use these when info from numorous attributes should be considered at the same time, to extimate overall probability of an outcome. 
+
+Most ML Algos ignore weak effect features, Bayes uses them all and adjusted subtly. Lots of small features could have a combined impact! 
+
+Bayes in a nutshell: likelihood of an event (outcome) should be based on evidence across many opportunities for the events to occur.
+
+Examples: 
+* heads / tails
+* rainy weather
+* winning the lottery
+* spam text
+
+**Probability**
+
+$\frac{successes}{attempts}$
+
+denoted as 
+
+The Probability that "A" event occurred: $P(A)$ 
+Probability that rain occured? $P(rain)$
+
+The inverse is probably that rain did not occur: $1 - P(rain)$ aka the complement $P(A^c)$ (Probability of the compliment of event A)
+
+**Joint Probability**
+
+How the probabilty of one event is related to the probability of the other. (and we use the upside-down "U" symbol to denote these intersections.)
+
+When "Spam" and "Viagra" occur, then the _intersection_ between $P(spam) \cap P(viagra)$ is a joint probability. 
+
+Quote from the text: **dependent events** are the basis of predictive modeling. Just as the presence of clouds is predictive of a rainy day, the appearance of the word Viagra is predictive of a spam email.
+
+$P(A \cap B) = P(A)*P(B)$
+
+# Computing conditional probability with Bayes’ theorem
+
+$P(A|B) = \frac{P(A \cap B)}{P(B)} $
+
+The probability of _Event A_ happened given _Event B_ also happened.
+
+Bayes says: The best estimate of $P(A|B)$ is the proportion of trials where A occurred with B out of _all_ events where B occurred. 
+
+which we can flip to $P(A|B) = \frac{P(A \cap B)}{P(B)} = \frac{P(B|A)*P(A)}{P(B)}$ using the transitive property of multiplication! 
+
+"Prior probability" is the known. In the case of the spam filter and viagra supplements, its easier to measure the $P(spam)$. 
+
+Then we can do _posterior probability_ to measure how likely a message is to be spam. Greater than 50%? more likely spam! 
+
+$P(spam|viagra) = \frac{P(viagra|spam) * P(spam)} {P(viagra)}$ 
+
+P(spam|viagra) = posterior probability
+P(viagra|spam) = likelihood
+P(spam) = prior probability
+P(viagra) = marginal likelihood 
+
+So... $posterior = \frac{likelihood * prior}{marginal}$
+
+# the Naive Bayes algo
+
+strengths
+* simple, fast, effective
+* works well with noise, missing data, & lots of features
+* few examples needed to train
+* easy to get estimated probability
+
+weaknesses
+* often-faulty assumptions of equal importance and independence (rarely true)
+* not great with numeric features
+* estimates not as reliable as predicated classes
+
+## Classification with Naive Bayes
+
+**class-conditional independence** = events are independent so long as they are conditioned on the same class value. Allows us to multiply individual conditional probabilities instead of looking at joint probability.
+
+"The probability of spam is equal to the likelihood that the message is spam divided by the likelihood that the message is _either_ spam or ham."
+`r round(0.012 / (0.012 + 0.002),3)`
+
+The probability of ham is equal to the likelihood that the message is ham divided by the likelihood that the message is eitehr. 
+`r round(0.002 / (0.012 + 0.002),3)`
+
+Build a frequency table. 
+build a likelihood table.
+multiply the conditional probabilities with the naive assumption of independence.
+divide by the total likelihood -- transforms each class likelihood into a probability.
+
+## The LaPlace estimator
+
+when we've never seen something before, it's prior is zero. So when we do a 'normal' Bayesian classifier multiplying the conditional probabilities, zero times zero = zero. The **Laplace estimator** adds a small number to each of the counts, which ensures that each feature has a non-zero probability of occuring. Typically it's set to 1 so all classes-features have at least _1_. (later notes: 1 is almost always used.)
+
+You add the laplace estimator in both the numerator and denominator of each likelihood.
+
+## Using numeric features
+
+Because naive bayes users frequency tables, each feature _must_ be categorical. Numeric features don't have categories! 
+
+* make the numeric features discrete; that is, put them into bins (aka: **Binning**). 
+++ Bin these according to logical conclusions about the data. 
+++ a clock has 24 discrete hours, or maybe 4 bins of time per day "early morning" "late morning" "afternoon" evening". 
+++ use a histogram! 
+* if you can't figure our how to bin, just pop 'em into quantiles. 
+
+# example, filtering spam texts
+
+## 1, collecting data
+
+```{r}
+sms_raw <- read_csv("https://raw.githubusercontent.com/PacktPublishing/Machine-Learning-with-R-Fourth-Edition/main/Chapter%2004/sms_spam.csv")
+
+# the file is also in the /data folder
+```
+## 2 exploration & prep
+
+```{r}
+str(sms_raw)
+glimpse(sms_raw)
+```
+
+```{r}
+sms_raw$type <- factor(sms_raw$type)
+
+str(sms_raw)
+
+table(sms_raw$type)
+```
+
+We use the `tm` package to text mining.
+```{r}
+library(tm)
+```
+
+We're going to create a corpus. A corpus is a collection of text documents. The text "documents" can be of any length. Use `VCorpus()` for this, the "v" meaning "volatile" (we'd used `PCorpus()` to access a permanent corpus on a database). 
+
+```{r}
+sms_corpus <- VCorpus(VectorSource(sms_raw$text))
+
+sms_corpus
+```
+
+A corpus is a list, so we can use list tools to pick documents out of it. 
+
+```{r}
+inspect(sms_corpus[1:2])
+```
+And to see what's _in_ those.. 
+
+```{r}
+as.character(sms_corpus[[1]])
+```
+
+ok so let's look at multiple documents...
+
+```{r}
+lapply(sms_corpus[1:2], as.character)
+```
+
+Lots of problems with text strings... Punctuation and character cases are two main ones. So let's try to clean this up a bit. 
+
+```{r}
+sms_corpus_clean <- 
+    tm_map(sms_corpus,
+           content_transformer(tolower))
+
+# did it work? 
+as.character(sms_corpus[[1]]) == as.character(sms_corpus_clean[[1]])
+as.character(sms_corpus_clean[[1]])
+```
+
+Notice that everything is lower case now. Next we remove numbers (and these iterative steps are things that seem better wrapped in `mutate()`)
+
+```{r}
+sms_corpus_clean <- tm_map(sms_corpus_clean, removeNumbers)
+
+lapply(sms_corpus[1:5], as.character)
+lapply(sms_corpus_clean[1:5], as.character)
+```
+
+Then we remove stop words, and may as well include puntuation next..
+
+```{r}
+sms_corpus_clean <-
+    tm_map(sms_corpus_clean,
+           removeWords, 
+           stopwords())
+
+sms_corpus_clean <-
+    tm_map(sms_corpus_clean,
+           removePunctuation)
+```
+
+... Note that removing punctuation can change a `hello...world` into `helloworld`
+
+We need to install the `SnowballC` package to do stemming sooo that's being done on the side.. Stemming strips `ed`, `ing`, and plurals from words so we can count the root words.
+
+```{r}
+sms_corpus_clean <-
+    tm_map(sms_corpus_clean, stemDocument)
+
+# and lets strip whitespaces too..
+
+sms_corpus_clean <- 
+    tm_map(sms_corpus_clean, stripWhitespace)
+```
+
+What does this end up looking like? 
+
+```{r}
+lapply(sms_corpus[1:5], as.character)
+lapply(sms_corpus_clean[1:5], as.character)
+```
+
+### data prep - text docs to words
+
+**tokenization**: a single element of a text string, words. 
+
+so we split the 'document' (text strings) into their individual words, then count how many times those words occur in each document. This produces with a massively wide data, as we attempt to count _each_ word of the entire corpus for each document. We end with a **sparce matrix** where most of the counts are zero. 
+
+We use the default settings of `DocumentTermMatrix()`.
+
+```{r}
+sms_dtm <- DocumentTermMatrix(sms_corpus_clean)
+```
+
+At least some of that prep we did earlier could've been done here too. When we do it this way, we notice the mix of cases in the `tm` package. (there's probably a better way out there to do this that has more attention to detail...).
+
+```{r}
+sms_dtm2 <- 
+    DocumentTermMatrix(
+        sms_corpus,
+        control = list(
+            tolower = TRUE,
+            removeNumbers = TRUE,
+            stopwords = TRUE,
+            removePunctuation = TRUE,
+            stemming = TRUE))
+```
+
+Though, doing it this way provides slightly different results. 
+
+```{r}
+sms_dtm
+sms_dtm2
+```
+
+```{r}
+# lets get rid of this because we aren't going to use it.
+rm(sms_dtm2)
+```
+
+(It would be nice if the results output was a table so we could compare the output values against each other.)
+
+## 3. training & test sets
+
+we'll split 75% training, 25% testing. 
+data is already randomized, so we're just going to take a lop off the top for training.
+
+```{r}
+sms_dtm_train <- sms_dtm[1:4169,]
+sms_dtm_test <- sms_dtm[4170:5559,]
+
+# and save a vector of their labels. 
+# this is not how i like to do this kind of thing, because it relies on manual input, 
+# which is prone to mistypes and errors! 
+
+sms_train_labels <- sms_raw[1:4169,]$type
+sms_test_labels <- sms_raw[4170:5559,]$type
+```
+
+
+```{r}
+prop.table(table(sms_train_labels))
+
+# tibble(sms_train_labels) %>%
+#     count(sms_train_labels) %>% 
+#     mutate(freq = n / sum(n))
+```
+
+```{r}
+prop.table(table(sms_test_labels))
+```
+
+## 4. Visualizing with word clouds
+
+and of course we need a new `wordcloud` package. i'm installing that through the console. 
+
+The idea here is that different words should **POP** between the spam & ham data.
+
+```{r}
+library(wordcloud)
+```
+
+```{r}
+wordcloud(sms_corpus_clean, 
+          min.freq = 50, 
+          random.order = FALSE)
+```
+
+Since this shows _all_ the messages, we need to force a subset then cloud again (again... this method doesn't scale!)
+
+```{r}
+spam <- subset(sms_raw, type == "spam")
+ham <- subset(sms_raw, type == "ham")
+```
+
+```{r}
+wordcloud(spam$text, max.words = 40, scale = c(3, 0.5))
+wordcloud(ham$text, max.words = 40, scale = c(3, 0.5))
+```
+
+## 5. creating indicator features for frequent words
+
+we need to reduce the number of "features" (columns) because that sparse matrix sucks. we'll get ride of any word that appears in less than 5 messages. We save that as it's own vector.
+
+```{r}
+sms_freq_words <- findFreqTerms(sms_dtm_train, 5)
+
+str(sms_freq_words) 
+
+## 1137 different terms make the cut!
+```
+
+Let's apply this vector as a filter to our training data! 
+
+```{r}
+sms_dtm_freq_train <- sms_dtm_train[ ,sms_freq_words]
+sms_dtm_freq_test <- sms_dtm_test[ ,sms_freq_words]
+```
+
+_now_ we convert the numeric features (the word counts) into categorical features (`Yes` or `No` strings, which would probably be better as TRUE/FALSE strings instead). Over in Tidyland, we'd probably get away with a mutate_all that does this through a case statement? 
+
+```{r}
+convert_counts <- function(x) {
+    x <- ifelse(x > 0, "Yes", "No")
+}
+```
+
+```{r}
+sms_train <- apply(sms_dtm_freq_train,
+                   MARGIN = 2, # applies the function to the columns, (MARGIN = 1 applies the function to rows)
+                   convert_counts)
+
+sms_test <- apply(sms_dtm_freq_test,
+                   MARGIN = 2,
+                   convert_counts)
+```
+
+## 6. training the model
+
+we use the `naivebayes` package which I also installed through the console. 
+
+```{r}
+library(naivebayes)
+```
+
+---- you're on page 259 ---- 
