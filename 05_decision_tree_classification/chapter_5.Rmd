@@ -58,9 +58,26 @@ curve(-x * log2(x) - (1 - x) * log2(1 - x), # the entropy algo for two class out
 
 Note that as one class dominates the other, entropy scales to zero. 
 
+* **information gain**: when the algorithm calculates changes in homogeneity that results from splits on features. Or: "the reduction in entropy or surprise by transforming a dataset and is often used in training decision trees. Information gain is calculated by comparing the entropy of the dataset before and after a transformation" (per https://machinelearningmastery.com/information-gain-and-mutual-information/)
+++ $InfoGain(F) = Entropy(S_1) - Entryopy(S_2)$
+++ The higher the information gain, the better a feature is at creating groups.
+
+After a split, the data divides into multiple partitions, so $(S_2)$ must consider entropy across all partitions resulting from the split. 
+
+Trees can split on numeric variables too. Gotta test split results that divide into groups though (binning that makes sense for the given challenge) - effectively turning the numeric variables into categorical data. 
+
+## Pruning
+
+* **pruning**: reducing the size of the decision tree to better generalize unseen data. 
+* **early stopping**: stopping tree growth once it has reached a set number of decisions. AKA *pre-pruning*
+* **post-pruning**: building a tree "too large" then cutting leaf nodes to reduce to more appropriate level. often more effective because it helps illustrate how large or deep the tree will go. 
+++C5.0 overfits, then prunes nodes and branches that have little effect or moves them.
+* **subtree raising** or **subtree replacement**: the act of moving branches to earlier in the tree
+
+## Example: finding risky bank loans
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
-library(readr)
 
 # I should wrap this in an IF statement. 
 # if the directory does not exist, create it. 
@@ -68,9 +85,169 @@ library(readr)
 fs::dir_create(here::here("05_decision_tree_classification/data"))
 ```
 
-
+### data ingestion from online csv
 
 ```{r}
-sms_raw <- read_csv("https://raw.githubusercontent.com/PacktPublishing/Machine-Learning-with-R-Fourth-Edition/main/Chapter%2005/sms_spam.csv")
+credit <- 
+    read.csv("https://raw.githubusercontent.com/PacktPublishing/Machine-Learning-with-R-Fourth-Edition/main/Chapter%2005/credit.csv",
+             stringsAsFactors = TRUE)
+
+credit |> str()
+```
+
+```{r}
+table(credit$checking_balance)
+table(credit$savings_balance)
+```
+
+These values use Deutschemark as the currency.
+Would probably be a good idea to order those factors! 
+
+```{r}
+summary(credit$months_loan_duration)
+summary(credit$amount)
+table(credit$default)
+```
+
+### data prep
+
+creating random training & test data
+
+using 90% for training, 10% for test because the small size of the data (1000 observations) using the `random()` function. So we need to set a seed value using `set.seed()`. The book provides a seed of **9829** so we'll use that too.
+
+```{r}
+set.seed(9829) # setting the seed
+train_sample <- sample(1000, 900) 
+```
+ 
+ah, this is interesting. They're making a dataset of the rows we're going to use for the training set; then use _that_ as the filter for the credit data. 
+
+```{r}
+credit_train <- credit[train_sample,]
+credit_test  <- credit[-train_sample,]
+```
+
+yep.
+
+```{r}
+prop.table(table(credit_train$default))
+```
+
+```{r}
+prop.table(table(credit_test$default))
+```
+
+### training
+
+```{r}
+library(C50)
+```
+
+We'll build a model to predict the `default` variable using _formula syntax_, then use the model to predict.
+
+```{r model_building}
+credit_model <- C5.0(default ~ ., # use all variables ...
+                     data = credit_train) # ...of the credit_train data 
+
+credit_model
+```
+
+We used 16 predictors to determine default, and the tree is 67 decisions deep. 
+
+I bet there's a different package out there that develops better visualizations for this. 
+
+```{r}
+summary(credit_model) 
+```
+
+Now we predict.
+
+```{r}
+credit_pred <- predict(credit_model, 
+                       credit_test)
+
+gmodels::CrossTable(credit_test$default,
+                    credit_pred,
+                    prop.chisq = FALSE,
+                    prop.c = FALSE,
+                    prop.r = FALSE,
+                    dnn = c('actual default', 'predicted default'))
+```
+
+24% predicted `not default` when in actuality, yes, they defaulted. That's not great and needs to be improved.
+
+### improving results
+
+We're gunna use _boosting_ to improve the model. Boosting seems to do a bit of component combination. 
+
+```{r}
+credit_boost10 <- C5.0(default ~ ., # use all variables ...
+                       data = credit_train, # ...of the credit_train data 
+                       trials = 10) # defacto standard for trials.
+
+credit_boost10
+```
+
+```{r}
+# summary(credit_boost10)
+credit_boost_pred10 <- predict(credit_boost10, 
+                               credit_test)
+
+gmodels::CrossTable(credit_test$default, 
+                    credit_boost_pred10,
+                    prop.chisq = FALSE, 
+                    prop.c = FALSE, 
+                    prop.r = FALSE,
+                    dnn = c('actual default', 'predicted default'))
+```
+
+#### cost matrix
+
+We build a cost matrix in order to penalize the decision tree for errors, preventing mistakes. 
+
+```{r}
+matrix_dimensions <- list(c("no", "yes"), 
+                          c("no", "yes"))
+
+names(matrix_dimensions) <- c("predicted", "actual")
+
+matrix_dimensions
+```
+
+Matrix built, now the costs of each. R goes top to bottom.
+
+```{r}
+error_cost <- matrix(c(0,1,4,0),
+                     nrow = 2,
+                     dimnames = matrix_dimensions)
+
+error_cost
+```
+
+No penalties for guessing correctly, but a penalty of 1 for predicting _Yes_ when the default is _no_; and a penality of 4 when the prediction is _No_ when the actual is _yes_.
+
+```{r}
+credit_cost <- C5.0(default ~ .,
+                    data = credit_train,
+                    costs = error_cost)
+
+credit_cost_pred <- predict(credit_cost, credit_test)
+
+gmodels::CrossTable(credit_test$default,
+                    credit_cost_pred,
+                    prop.chisq = FALSE, 
+                    prop.c = FALSE, 
+                    prop.r = FALSE,
+                    dnn = c('actual default', 'predicted default'))
+```
+
+# Rule Learners
+
+(Different than decision tree learners)
+
+--- you are on page 315 ----
+
+```{r}
 
 ```
+
