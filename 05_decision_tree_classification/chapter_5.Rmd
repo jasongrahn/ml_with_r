@@ -58,9 +58,6 @@ curve(-x * log2(x) - (1 - x) * log2(1 - x), # the entropy algo for two class out
 
 Note that as one class dominates the other, entropy scales to zero. 
 
-
-
-
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
 library(readr)
@@ -73,9 +70,7 @@ fs::dir_create(here::here("05_decision_tree_classification/data"))
 
 
 
-
 ```{r}
 sms_raw <- read_csv("https://raw.githubusercontent.com/PacktPublishing/Machine-Learning-with-R-Fourth-Edition/main/Chapter%2005/sms_spam.csv")
 
 ```
-
