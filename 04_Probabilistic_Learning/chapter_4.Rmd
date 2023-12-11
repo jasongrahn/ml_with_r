@@ -2,13 +2,12 @@
 title: "chapter_4_probabilistic_classifiers_with_bayes"
 author: "jason grahn"
 date: "2023-11-21"
-output: github1_document
+output: github_document
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
 library(readr)
-
 ```
 
 "Bayes" = principles for describing the probability of events and how those probabilities are revised with additional information.
@@ -134,7 +133,7 @@ sms_raw <- read_csv("https://raw.githubusercontent.com/PacktPublishing/Machine-L
 
 ```{r}
 str(sms_raw)
-glimpse(sms_raw)
+dplyr::glimpse(sms_raw)
 ```
 
 ```{r}
@@ -373,4 +372,48 @@ we use the `naivebayes` package which I also installed through the console.
 library(naivebayes)
 ```
 
----- you're on page 259 ---- 
+```{r warning=FALSE}
+sms_classifier <- naive_bayes(sms_train, sms_train_labels)
+
+# muting errors because the book says I dont need to worry about this for now. 
+# the error come from using the defalt leplace estimator
+```
+
+```{r}
+sms_test_pred <- predict(sms_classifier, sms_test)
+```
+
+```{r}
+gmodels::CrossTable(sms_test_pred, 
+                    sms_test_labels,
+                    prop.chisq = FALSE,
+                    prop.c = FALSE,
+                    prop.r = FALSE,
+                    dnn = c('predicted', 'actual'))
+```
+
+## 7. improving the model
+
+```{r}
+sms_classifier2 <- naive_bayes(sms_train,
+                               sms_train_labels,
+                               laplace = 1)
+
+# see, no errors when we make laplace = 1
+```
+
+```{r}
+sms_test_pred2 <- predict(sms_classifier2, sms_test)
+```
+
+```{r}
+gmodels::CrossTable(sms_test_pred2, 
+                    sms_test_labels,
+                    prop.chisq = FALSE,
+                    prop.c = FALSE,
+                    prop.r = FALSE,
+                    dnn = c('predicted', 'actual'))
+```
+
+Notice that this reduced the number of false positives (ham messages classified as spam) as well as false negatives (spam messages classfied as ham). This model is 3 pp better than 0. 
+

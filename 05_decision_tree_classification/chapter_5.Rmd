@@ -1,0 +1,81 @@
+---
+title: "chapter_5_decision_tree_classification"
+author: "jason grahn"
+date: "2023-12-07"
+output: github_document
+---
+
+We're gunna make a few decision trees.
+
+* C5.0, 1R, and RIPPER (huh?) ((that's why I'm doing this!))
+
+decision tree terms: 
+
+* **root node**: where the tree starts
+* **decision node**: choices to be made based on attributes of the job
+* **branch**: indicators of potential outcomes of a decision
+* **leaf node / terminal node**: terminators that denote the action taken after the decision. 
+
+These work like flow-charts and should output a structure that humans can consume. If someone hands you a decision tree model and doesn't give you the structure, they're lying to you. Important for legal transparency, or if the results might inform practices.
+
+very widely used.
+
+more terms: 
+
+* **recursive partitioning** (aka **divide and conquer**): a heuristic that splits data into subsets repeatedly until the algo decides homogeneity. 
+
+This would've been great to use on the renewals project. Probably would've lifted it higher than I did and taken less time to do it. Coulda used Frank's dataset for price sensitivity.
+
+"overly specific decisions do not always generalize more broadly." - Brett Lantz
+
+* **axis-parallel splits**: each data split or decision considers one feature at a time. The split occurs parallel to one of the axis (visualize a scatterplot).
+
+side-note, I should start playing with Quarto. I'll start that in the next chapter.
+
+# C5.0
+
+the industry standard for decision trees. Does well out-of-box. easy to understand. easy to deploy.
+
+## choosing a split
+
+* **purity**: degree to which a subset of examples contains a single class
+* **pure**: any subset of data composed of only a single class
+* **entropy**: quantified randomness within a set of class values
+
+A decision tree hopes to find splits that reduce entropy.
+
+* **bits**: measurement of entropy. closer to 0 means closer to homogeneity, higher values indicate diversity.
+
+an entropy curve: 
+
+```{r}
+curve(-x * log2(x) - (1 - x) * log2(1 - x), # the entropy algo for two class outcomes 
+      col = "red", # just giving a spash of color
+      xlab = "x", # titling an axis
+      ylab = "Entropy", # titling an axis
+      lwd = 1) # line width
+```
+
+Note that as one class dominates the other, entropy scales to zero. 
+
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(readr)
+
+# I should wrap this in an IF statement. 
+# if the directory does not exist, create it. 
+# if it does, exit.
+fs::dir_create(here::here("05_decision_tree_classification/data"))
+```
+
+
+
+
+```{r}
+sms_raw <- read_csv("https://raw.githubusercontent.com/PacktPublishing/Machine-Learning-with-R-Fourth-Edition/main/Chapter%2005/sms_spam.csv")
+
+```
+
