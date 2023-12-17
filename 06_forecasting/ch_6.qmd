@@ -1,0 +1,9 @@
+---
+title: "chapter 6, Forecasting numeric data with regression"
+author: "jason grahn"
+format: gfm
+editor: visual
+output: "asis"
+---
+
+## 
