@@ -138,6 +138,10 @@ categorical. Numeric features don’t have categories!
 
 ## 1, collecting data
 
+``` r
+sms_raw <- read_csv("https://raw.githubusercontent.com/PacktPublishing/Machine-Learning-with-R-Fourth-Edition/main/Chapter%2004/sms_spam.csv")
+```
+
     ## Rows: 5559 Columns: 2
     ## ── Column specification ────────────────────────────────────────────────────────
     ## Delimiter: ","
@@ -146,7 +150,15 @@ categorical. Numeric features don’t have categories!
     ## ℹ Use `spec()` to retrieve the full column specification for this data.
     ## ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
 
+``` r
+# the file is also in the /data folder
+```
+
 ## 2 exploration & prep
+
+``` r
+str(sms_raw)
+```
 
     ## spc_tbl_ [5,559 × 2] (S3: spec_tbl_df/tbl_df/tbl/data.frame)
     ##  $ type: chr [1:5559] "ham" "ham" "ham" "spam" ...
@@ -158,10 +170,20 @@ categorical. Numeric features don’t have categories!
     ##   .. )
     ##  - attr(*, "problems")=<externalptr>
 
+``` r
+dplyr::glimpse(sms_raw)
+```
+
     ## Rows: 5,559
     ## Columns: 2
     ## $ type <chr> "ham", "ham", "ham", "spam", "spam", "ham", "ham", "ham", "spam",…
     ## $ text <chr> "Hope you are having a good week. Just checking in", "K..give bac…
+
+``` r
+sms_raw$type <- factor(sms_raw$type)
+
+str(sms_raw)
+```
 
     ## spc_tbl_ [5,559 × 2] (S3: spec_tbl_df/tbl_df/tbl/data.frame)
     ##  $ type: Factor w/ 2 levels "ham","spam": 1 1 1 2 2 1 1 1 2 1 ...
@@ -173,11 +195,19 @@ categorical. Numeric features don’t have categories!
     ##   .. )
     ##  - attr(*, "problems")=<externalptr>
 
+``` r
+table(sms_raw$type)
+```
+
     ## 
     ##  ham spam 
     ## 4812  747
 
 We use the `tm` package to text mining.
+
+``` r
+library(tm)
+```
 
     ## Loading required package: NLP
 
@@ -186,12 +216,22 @@ documents. The text “documents” can be of any length. Use `VCorpus()`
 for this, the “v” meaning “volatile” (we’d used `PCorpus()` to access a
 permanent corpus on a database).
 
+``` r
+sms_corpus <- VCorpus(VectorSource(sms_raw$text))
+
+sms_corpus
+```
+
     ## <<VCorpus>>
     ## Metadata:  corpus specific: 0, document level (indexed): 0
     ## Content:  documents: 5559
 
 A corpus is a list, so we can use list tools to pick documents out of
 it.
+
+``` r
+inspect(sms_corpus[1:2])
+```
 
     ## <<VCorpus>>
     ## Metadata:  corpus specific: 0, document level (indexed): 0
@@ -209,9 +249,17 @@ it.
 
 And to see what’s *in* those..
 
+``` r
+as.character(sms_corpus[[1]])
+```
+
     ## [1] "Hope you are having a good week. Just checking in"
 
 ok so let’s look at multiple documents…
+
+``` r
+lapply(sms_corpus[1:2], as.character)
+```
 
     ## $`1`
     ## [1] "Hope you are having a good week. Just checking in"
@@ -222,12 +270,31 @@ ok so let’s look at multiple documents…
 Lots of problems with text strings… Punctuation and character cases are
 two main ones. So let’s try to clean this up a bit.
 
+``` r
+sms_corpus_clean <- 
+    tm_map(sms_corpus,
+           content_transformer(tolower))
+
+# did it work? 
+as.character(sms_corpus[[1]]) == as.character(sms_corpus_clean[[1]])
+```
+
     ## [1] FALSE
+
+``` r
+as.character(sms_corpus_clean[[1]])
+```
 
     ## [1] "hope you are having a good week. just checking in"
 
 Notice that everything is lower case now. Next we remove numbers (and
 these iterative steps are things that seem better wrapped in `mutate()`)
+
+``` r
+sms_corpus_clean <- tm_map(sms_corpus_clean, removeNumbers)
+
+lapply(sms_corpus[1:5], as.character)
+```
 
     ## $`1`
     ## [1] "Hope you are having a good week. Just checking in"
@@ -243,6 +310,10 @@ these iterative steps are things that seem better wrapped in `mutate()`)
     ## 
     ## $`5`
     ## [1] "okmail: Dear Dave this is your final notice to collect your 4* Tenerife Holiday or #5000 CASH award! Call 09061743806 from landline. TCs SAE Box326 CW25WX 150ppm"
+
+``` r
+lapply(sms_corpus_clean[1:5], as.character)
+```
 
     ## $`1`
     ## [1] "hope you are having a good week. just checking in"
@@ -261,6 +332,17 @@ these iterative steps are things that seem better wrapped in `mutate()`)
 
 Then we remove stop words, and may as well include puntuation next..
 
+``` r
+sms_corpus_clean <-
+    tm_map(sms_corpus_clean,
+           removeWords, 
+           stopwords())
+
+sms_corpus_clean <-
+    tm_map(sms_corpus_clean,
+           removePunctuation)
+```
+
 … Note that removing punctuation can change a `hello...world` into
 `helloworld`
 
@@ -268,7 +350,21 @@ We need to install the `SnowballC` package to do stemming sooo that’s
 being done on the side.. Stemming strips `ed`, `ing`, and plurals from
 words so we can count the root words.
 
+``` r
+sms_corpus_clean <-
+    tm_map(sms_corpus_clean, stemDocument)
+
+# and lets strip whitespaces too..
+
+sms_corpus_clean <- 
+    tm_map(sms_corpus_clean, stripWhitespace)
+```
+
 What does this end up looking like?
+
+``` r
+lapply(sms_corpus[1:5], as.character)
+```
 
     ## $`1`
     ## [1] "Hope you are having a good week. Just checking in"
@@ -284,6 +380,10 @@ What does this end up looking like?
     ## 
     ## $`5`
     ## [1] "okmail: Dear Dave this is your final notice to collect your 4* Tenerife Holiday or #5000 CASH award! Call 09061743806 from landline. TCs SAE Box326 CW25WX 150ppm"
+
+``` r
+lapply(sms_corpus_clean[1:5], as.character)
+```
 
     ## $`1`
     ## [1] "hope good week just check"
@@ -312,12 +412,32 @@ where most of the counts are zero.
 
 We use the default settings of `DocumentTermMatrix()`.
 
+``` r
+sms_dtm <- DocumentTermMatrix(sms_corpus_clean)
+```
+
 At least some of that prep we did earlier could’ve been done here too.
 When we do it this way, we notice the mix of cases in the `tm` package.
 (there’s probably a better way out there to do this that has more
 attention to detail…).
 
+``` r
+sms_dtm2 <- 
+    DocumentTermMatrix(
+        sms_corpus,
+        control = list(
+            tolower = TRUE,
+            removeNumbers = TRUE,
+            stopwords = TRUE,
+            removePunctuation = TRUE,
+            stemming = TRUE))
+```
+
 Though, doing it this way provides slightly different results.
+
+``` r
+sms_dtm
+```
 
     ## <<DocumentTermMatrix (documents: 5559, terms: 6542)>>
     ## Non-/sparse entries: 42113/36324865
@@ -325,11 +445,20 @@ Though, doing it this way provides slightly different results.
     ## Maximal term length: 40
     ## Weighting          : term frequency (tf)
 
+``` r
+sms_dtm2
+```
+
     ## <<DocumentTermMatrix (documents: 5559, terms: 6940)>>
     ## Non-/sparse entries: 43186/38536274
     ## Sparsity           : 100%
     ## Maximal term length: 40
     ## Weighting          : term frequency (tf)
+
+``` r
+# lets get rid of this because we aren't going to use it.
+rm(sms_dtm2)
+```
 
 (It would be nice if the results output was a table so we could compare
 the output values against each other.)
@@ -339,9 +468,35 @@ the output values against each other.)
 we’ll split 75% training, 25% testing. data is already randomized, so
 we’re just going to take a lop off the top for training.
 
+``` r
+sms_dtm_train <- sms_dtm[1:4169,]
+sms_dtm_test <- sms_dtm[4170:5559,]
+
+# and save a vector of their labels. 
+# this is not how i like to do this kind of thing, because it relies on manual input, 
+# which is prone to mistypes and errors! 
+
+sms_train_labels <- sms_raw[1:4169,]$type
+sms_test_labels <- sms_raw[4170:5559,]$type
+```
+
+``` r
+prop.table(table(sms_train_labels))
+```
+
     ## sms_train_labels
     ##       ham      spam 
     ## 0.8647158 0.1352842
+
+``` r
+# tibble(sms_train_labels) %>%
+#     count(sms_train_labels) %>% 
+#     mutate(freq = n / sum(n))
+```
+
+``` r
+prop.table(table(sms_test_labels))
+```
 
     ## sms_test_labels
     ##       ham      spam 
@@ -355,12 +510,31 @@ through the console.
 The idea here is that different words should **POP** between the spam &
 ham data.
 
+``` r
+library(wordcloud)
+```
+
     ## Loading required package: RColorBrewer
+
+``` r
+wordcloud(sms_corpus_clean, 
+          min.freq = 50, 
+          random.order = FALSE)
+```
 
 ![](chapter_4_files/figure-gfm/unnamed-chunk-22-1.png)<!-- -->
 
 Since this shows *all* the messages, we need to force a subset then
 cloud again (again… this method doesn’t scale!)
+
+``` r
+spam <- subset(sms_raw, type == "spam")
+ham <- subset(sms_raw, type == "ham")
+```
+
+``` r
+wordcloud(spam$text, max.words = 40, scale = c(3, 0.5))
+```
 
     ## Warning in tm_map.SimpleCorpus(corpus, tm::removePunctuation): transformation
     ## drops documents
@@ -369,6 +543,10 @@ cloud again (again… this method doesn’t scale!)
     ## tm::stopwords())): transformation drops documents
 
 ![](chapter_4_files/figure-gfm/unnamed-chunk-24-1.png)<!-- -->
+
+``` r
+wordcloud(ham$text, max.words = 40, scale = c(3, 0.5))
+```
 
     ## Warning in tm_map.SimpleCorpus(corpus, tm::removePunctuation): transformation
     ## drops documents
@@ -384,21 +562,76 @@ we need to reduce the number of “features” (columns) because that sparse
 matrix sucks. we’ll get ride of any word that appears in less than 5
 messages. We save that as it’s own vector.
 
+``` r
+sms_freq_words <- findFreqTerms(sms_dtm_train, 5)
+
+str(sms_freq_words) 
+```
+
     ##  chr [1:1137] "£wk" "abiola" "abl" "abt" "accept" "access" "account" ...
 
+``` r
+## 1137 different terms make the cut!
+```
+
 Let’s apply this vector as a filter to our training data!
+
+``` r
+sms_dtm_freq_train <- sms_dtm_train[ ,sms_freq_words]
+sms_dtm_freq_test <- sms_dtm_test[ ,sms_freq_words]
+```
 
 *now* we convert the numeric features (the word counts) into categorical
 features (`Yes` or `No` strings, which would probably be better as
 TRUE/FALSE strings instead). Over in Tidyland, we’d probably get away
 with a mutate_all that does this through a case statement?
 
+``` r
+convert_counts <- function(x) {
+    x <- ifelse(x > 0, "Yes", "No")
+}
+```
+
+``` r
+sms_train <- apply(sms_dtm_freq_train,
+                   MARGIN = 2, # applies the function to the columns, (MARGIN = 1 applies the function to rows)
+                   convert_counts)
+
+sms_test <- apply(sms_dtm_freq_test,
+                   MARGIN = 2,
+                   convert_counts)
+```
+
 ## 6. training the model
 
 we use the `naivebayes` package which I also installed through the
 console.
 
+``` r
+library(naivebayes)
+```
+
     ## naivebayes 0.9.7 loaded
+
+``` r
+sms_classifier <- naive_bayes(sms_train, sms_train_labels)
+
+# muting errors because the book says I dont need to worry about this for now. 
+# the error come from using the defalt leplace estimator
+```
+
+``` r
+sms_test_pred <- predict(sms_classifier, sms_test)
+```
+
+``` r
+gmodels::CrossTable(sms_test_pred, 
+                    sms_test_labels,
+                    prop.chisq = FALSE,
+                    prop.c = FALSE,
+                    prop.r = FALSE,
+                    dnn = c('predicted', 'actual'))
+```
 
     ## 
     ##  
@@ -427,6 +660,27 @@ console.
     ## 
 
 ## 7. improving the model
+
+``` r
+sms_classifier2 <- naive_bayes(sms_train,
+                               sms_train_labels,
+                               laplace = 1)
+
+# see, no errors when we make laplace = 1
+```
+
+``` r
+sms_test_pred2 <- predict(sms_classifier2, sms_test)
+```
+
+``` r
+gmodels::CrossTable(sms_test_pred2, 
+                    sms_test_labels,
+                    prop.chisq = FALSE,
+                    prop.c = FALSE,
+                    prop.r = FALSE,
+                    dnn = c('predicted', 'actual'))
+```
 
     ## 
     ##  

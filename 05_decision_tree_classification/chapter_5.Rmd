@@ -77,7 +77,7 @@ Trees can split on numeric variables too. Gotta test split results that divide i
 ## Example: finding risky bank loans
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
+#knitr::opts_chunk$set(echo = FALSE)
 
 # I should wrap this in an IF statement. 
 # if the directory does not exist, create it. 
@@ -245,9 +245,101 @@ gmodels::CrossTable(credit_test$default,
 
 (Different than decision tree learners)
 
---- you are on page 315 ----
+Rule learning classifiers **separate and conquer** - training in partitions through the dataset. Also known as **covering algorithms**. 
+
+* **ZeroR**: considers no features and learns no `R`ules (= zero R-ules, get it?). It only predicts the most common class.
+* **1R**: selects _one_ rule to classify.
+++ for _each feature_ 1R divides the data into groups with similar values. Then chooses the single rule that misclassfies least.
+* **IREP**: Incremental Reduced Error Pruning pre- and post-prunes to grow complex rules and prunes before separating the data.
+* **RIPPER**: Repeated Incremental Pruning to Produce Error Reduction. Produces parsimonious (stingy / frugal) models compared to decision trees. Considers many features, including compound rules (If X and Y then ...). Works in three phases:
+++ Grow - add conditions greedily, seemingly overfits.
+++ Prune - zero entropy rules get pruned, then grow/prune is repeated until a stopping criteria is met.
+++ Optimize - after stopping, it's gone back through to optimize.
+* **greedy learners**: decisions trees and rule learners that use data first-come, first-serve. Markes & solves one partition before moving onto the next. Doesn't produce optimal results.
+++ Once a feature is split in _Divide and Conquer_, partitions created by the split aren't re-evaluated, only further subdivided. Our future is limited by our past decisions. 
+++ _Separate and Conquer_ does allow for examples not covered by prior rules to be re-evaluated.
+
+decision trees often result with more complex rules than a rule learner, though sometimes more computationally easy.
+
+## Identifying poisonous mushrooms! 
+
+Let's go get data from the github.
 
 ```{r}
+mushrooms <- 
+    read.csv("https://raw.githubusercontent.com/PacktPublishing/Machine-Learning-with-R-Fourth-Edition/main/Chapter%2005/mushrooms.csv",
+             stringsAsFactors = TRUE)
 
+mushrooms |> str()
+```
+
+look at all those factors!! Also, `veil_type` looks homogeneous already. huh. 
+
+```{r}
+# book wants to drop it. 
+# Tidy would just use `select()` to remove it, but we can do it base R too..
+
+mushrooms$veil_type <- NULL
+```
+
+```{r}
+table(mushrooms$type)
+```
+
+the goal is to predict poisonous. And we're going to install the `OneR` package to do it.  
+
+```{r}
+library(OneR)
+```
+
+```{r}
+mushroom_1r <- OneR(type ~ .,
+                    data = mushrooms)
+
+mushroom_1r
+```
+
+```{r}
+mushroom_1r_pred <- predict(mushroom_1r, mushrooms)
+
+table(actual = mushrooms$type,
+      predicted = mushroom_1r_pred)
+```
+
+and now we'll flip to JRip to improve on that..JRip comes from the RWeka package. 
+
+Oh boy this is a ball of twine..
+
+"No Java runtime present, requesting install. *** Java interpreter doesn't work properly."
+
+Oh, per [here](https://stackoverflow.com/questions/44009058/even-though-jre-8-is-installed-on-my-mac-no-java-runtime-present-requesting-t) it's because I need to install 
+https://www.oracle.com/java/technologies/downloads/#jdk21-mac
+
+(Yep, that fixed it).
+
+```{r}
+library(RWeka)
+```
+
+```{r}
+mushroom_jrip <- JRip(type ~ ., 
+                      data = mushrooms)
+
+mushroom_jrip
+```
+
+This shows more complex, but also simple rules to follow. 
+
+```{r}
+summary(mushroom_jrip)
+```
+
+```{r}
+# Rule Learner Using C5.0 Decision Trees (not in text)
+#library(C50)
+mushroom_c5rules <- C5.0(type ~ ., 
+                         data = mushrooms, 
+                         rules = TRUE)
+summary(mushroom_c5rules)
 ```
 
