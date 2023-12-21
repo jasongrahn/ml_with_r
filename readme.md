@@ -1,5 +1,4 @@
-README
-================
+# README
 Jason Grahn
 
 ## Quarto
