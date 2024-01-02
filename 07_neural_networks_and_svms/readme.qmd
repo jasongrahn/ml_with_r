@@ -2,8 +2,322 @@
 title: "ch_7 Black Boxes: Neural networks & SVMs"
 author: "Jason Grahn"
 format: gfm
+code-fold: TRUE
 editor: visual
 output: "asis"
 ---
 
-## lorem ipsum 
+# Neural networks & SVMs
+
+## Overview
+
+-   **black box process (hidden box)**: mechanism that transforms input to output is obfuscated by an imaginary box. in ML the process is what's hidden inside the box because the maths are complex.
+
+-   Neural networks: mimic brain structure
+
+-   support vector machines: use multimidensional surface to define relationships between features and outcomes.
+
+-   **artificial neural network (ANN):** models relationship between input and output using stimuli from sensory inputs
+
+    -   ANNs use "nodes" to solve problems.
+
+    -   often used when the data is **well defined** yet the process that connect input to output are complex and difficult to define.
+
+-   Many types, with 3 main characteristics:
+
+    -   **activation function:** transforms net input signal into a single output signal.
+
+    -   **network topology (architecture)**: describes the number of neurons in the model, the number of layers, and the manner in which they're connected
+
+    -   **training algo**: specifies how connection weights are set to reward or penalize in proportion to their signal.
+
+### Activation functions
+
+"The activation function is the mechanism by which the artificial neuron processes incoming information and determines whether to pass the signal to other neurons in the network."
+
+(Lantz, Brett. Machine Learning with R: Learn techniques for building and improving machine learning models, from data preparation to model tuning, evaluation, and working with big data, 4th Edition (p. 462). Packt Publishing. Kindle Edition.)
+
+In an ANN, it's known as a *threshold activation function* because it's the threshold by which the neuron activates and sends an output signal. Sometimes referred to as a *unit step activation function.* Rarely used in ANNs
+
+-   **sigmoid activation function** (logistic sigmoid); instead of operating like a light switch, this allows for the output signal to fall on a scale of 0 to 1.
+
+    -   differentiable: possible to calculate the derivative across the range of inputs.
+
+-   choice of activation function biases the network to fit certain types of data better.
+
+Author note: "Neural networks use nonlinear activation functions almost exclusively since this is what allows the network to become more intelligent as more nodes are added. Limited to linear activation functions only, a network is limited to linear solutions and will perform no better than the much simpler regression methods."
+
+-   **squashing function:** when a function clips the peaks of input values before activating
+
+    -   solutions to squashing standardize or normalize the data in some way.
+
+### Network topology
+
+-   number of layers
+
+-   direction of travel
+
+-   number of nodes in each layer
+
+Topology determines complexity of tasks that can be learned by the network. Power of a network is a function of the network size *and* the arrangement.
+
+### number of layers
+
+-   **input nodes**: a set of neurons that receives unprocessed signals from input data
+
+    -   each node processes a single feature in the data.
+
+    -   feature is transformed by the node's activation function.
+
+    -   then a signal sent to the output node
+
+-   **output node**: generates a final prediction using it's own activation function.
+
+-   nodes are generated in **layers**
+
+-   **multilayer network**: adds more *hidden* layers to process signals from input nodes
+
+    -   hidden layers are what make the hidden box hidden. knowing what happens here is more and more challenging the more layers that are added.
+
+    -   neural network with many hidden layers is called a **deep neural network** (DNN) and training them is called **deep learning**.
+
+        -   deep leaning is better at some tasks than others.
+
+### direction of layers
+
+-   **filly connected**: every node in one layer is connected to every node in the next. common for simply multilayer networks.
+
+-   **convolutional neural networks:** only partially connected.
+
+    -   limiting connections limits overfitting.
+
+-   **feed forward network**: networks where the input signal is fed from input to output continuously in one direction.
+
+-   **recurrent neural network** (feedback network): network where signals move backwards using loops. Allows for elaborate and complex learning.
+
+-   **delay:** increases the power of recurrent networks by sequencing events over time (think about DAGs)
+
+-   **long short-term memory** (LSTM): a network where the model has longer recall into both short and long term memory.
+
+### number of nodes
+
+The number of *input* nodes is predetermined by the number of features in the input data.
+
+The number of *output* nodes is predetermined by the number of outcomes to be modeled.
+
+The number of *hidden* nodes is up to user discretion.
+
+The more complex the network, the more learning that can be done to solve the most complex problems.
+
+-   **universal function approximator:** A network with at least 1 hiddel later with nonlinear activation functions
+
+## Training networks with backpropagation 
+
+-   **Backpropagation**: The algo used to train an ANN, uses a strategy to back-propagate errors
+
+-   **Epoch:** a cycle of two processes that backpropagation iterates through
+
+    -   starting weights are set at random
+
+    -   **forward phase:** network is activated in sequence from input to output.
+
+    -   **backward phase:** the output from forward phase is compared to target value in training. The difference between output and true value produces an error which is propagated backward in network to modify connection weights between neurons to reduce future errors
+
+-   **Gradient Descent**: using the derivative of each neuron to identify the *gradient* in the direction of each incoming weight.
+
+    -   gradient suggests how steeply the error will be reduced (descent) or increased for a change in weight.
+
+    -   algo attemps to change the weights that result in the greatest reduction in error (the **learning rate**)
+
+        -   the greater the learning rate, the faster the algo will attempt to go down the gradient, reducing training time (at risk of overshooting 'the valley')
+
+## Example: Model the strength of concrete
+
+### Collect
+
+```{r}
+concrete <- 
+    read.csv("https://raw.githubusercontent.com/PacktPublishing/Machine-Learning-with-R-Fourth-Edition/main/Chapter%2007/concrete.csv",
+             stringsAsFactors = TRUE)
+```
+
+### explore
+
+```{r}
+concrete |> 
+    psych::describe() 
+```
+
+Notice that those values range from zero to thousands, which makes comparative analysis tricky.
+
+"Neural networks work best when the input data is scales to a narrow range around zero." - the book.
+
+so we'll load up the normalize function we built a couple chapters ago..
+
+```{r}
+normalize <- 
+    function(x) {
+        return((x - min(x)) / (max(x) - min(x)))
+    }
+
+concrete_norm <- as.data.frame(lapply(concrete, normalize))
+```
+
+```{r}
+concrete_norm |> psych::describe()
+```
+
+```{r}
+summary(concrete_norm$strength)
+summary(concrete$strength)
+```
+
+The data has already random ordered, so (bad practice) we'll just divide it into two portions.
+
+```{r}
+concrete_train <- concrete_norm[1:773, ]
+concrete_test <- concrete_norm[774:1030, ]
+```
+
+### training
+
+i've installed the `neuralnet` package per the book.
+
+We have to set the seed to control for randomization.
+
+```{r}
+library(neuralnet)
+set.seed(12345) # to guarantee repeatable results
+concrete_model <- neuralnet(strength ~ cement + slag +
+                              ash + water + superplastic + 
+                              coarseagg + fineagg + age,
+                              data = concrete_train)
+
+```
+
+```{r}
+plot(concrete_model)
+```
+
+### evaluating performance
+
+```{r}
+model_results <- compute(concrete_model, concrete_test[1:8])
+```
+
+```{r}
+predicted_strength <- model_results$net.result
+```
+
+```{r}
+cor(predicted_strength, concrete_test$strength)
+plot(predicted_strength, concrete_test$strength)
+```
+
+### improvements
+
+we only used 1 hidden node. let's turn up the volume and see what we get!
+
+```{r}
+set.seed(12345)
+concrete_model2 <- neuralnet(strength ~ cement + slag +
+                               ash + water + superplastic + 
+                               coarseagg + fineagg + age,
+                             data = concrete_train,
+                             hidden = 5)
+```
+
+```{r}
+# plot the network
+plot(concrete_model2)
+```
+
+the error rate is *way* down. The step count is huge in comparison.
+
+```{r}
+# evaluate the results as we did before
+model_results2 <- compute(concrete_model2, concrete_test[1:8])
+
+predicted_strength2 <- model_results2$net.result
+
+cor(predicted_strength2, concrete_test$strength)
+plot(predicted_strength2, concrete_test$strength)
+```
+
+**softplus** is an activation function that's extremely popular so let's try to apply that.
+
+```{r}
+softplus <- 
+    function(x) {
+        log(1 + exp(x))
+    }
+```
+
+application of softplus as well as adding another layer...
+
+```{r}
+# to guarantee repeatable results and has to be in the same code block as the model.. 
+set.seed(12345) 
+concrete_model3 <- 
+    neuralnet(strength ~ cement + slag + ash + 
+                  water + superplastic + coarseagg +
+                  fineagg + age,
+              data = concrete_train, 
+              hidden = c(5, 5), # 2 layers of 5 nodes
+              act.fct = softplus)
+
+# plot the network
+plot(concrete_model3)
+```
+
+```{r}
+# evaluate the results as we did before
+model_results3 <- compute(concrete_model3, concrete_test[1:8])
+predicted_strength3 <- model_results3$net.result
+
+cor(predicted_strength3, concrete_test$strength)
+plot(predicted_strength3, concrete_test$strength)
+```
+
+but the predictors are all normalized...
+
+```{r}
+strengths <- data.frame(
+  actual = concrete$strength[774:1030],
+  pred = predicted_strength3
+)
+
+```
+
+it's ok, the relationships stay the same!
+
+```{r}
+head(strengths, n = 3)
+
+# correlation is unaffected by normalization...
+# ...but measures like percent error would be affected by the change in scale!
+cor(strengths$pred, strengths$actual)
+cor(strengths$pred, concrete_test$strength)
+```
+
+but let's *unnormalize* them so we can better interpret them
+
+```{r}
+unnormalize <- 
+    function(x) {
+        return(x * max(concrete$strength) - 
+                   min(concrete$strength)) + 
+            min(concrete$strength)
+    }
+```
+
+```{r}
+strengths$pred_new <- unnormalize(strengths$pred)
+strengths$error_pct <- (strengths$pred_new - strengths$actual) / strengths$actual
+```
+
+```{r}
+head(strengths, 3)
+```
+
+# Understanding Support Vector Machines
